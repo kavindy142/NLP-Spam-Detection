@@ -1,14 +1,7 @@
-<<<<<<< HEAD
-streamlit
-scikit-learn
-joblib
-pandas
-nltk
-=======
 streamlit
 scikit-learn
 joblib
 pandas
 nltk
 numpy
->>>>>>> 87a930a2e334727d45548e093390a6de24139916
+torch
