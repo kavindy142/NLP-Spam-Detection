@@ -1,46 +1,61 @@
-import os
-import joblib
 import streamlit as st
+import joblib
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
-# Setup paths
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "logistic_regression.pkl")
-VECTORIZER_PATH = os.path.join(BASE_DIR, "models", "tfidf_vectorizer.pkl")
+# Ensure NLTK resources are available
+nltk.download('stopwords')
+nltk.download('wordnet')
 
-# Page Config
-st.set_page_config(page_title="SMS & Email Spam Detector", page_icon="📩")
+# Load the best-performing model (Logistic Regression) & TF-IDF Vectorizer
+@st.cache_resource
+def load_assets():
+    model = joblib.load('models/logistic_regression.pkl')
+    tfidf = joblib.load('models/tfidf_vectorizer.pkl')
+    return model, tfidf
 
-# Header
+model, tfidf = load_assets()
+
+# Preprocessing function
+lemmatizer = WordNetLemmatizer()
+stop_words = set(stopwords.words('english'))
+
+def preprocess_text(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    tokens = text.split()
+    tokens = [lemmatizer.lemmatize(w) for w in tokens if w not in stop_words]
+    return " ".join(tokens)
+
+# Streamlit User Interface
+st.set_page_config(page_title="SMS & Email Spam Detector", page_icon="📩", layout="centered")
+
 st.title("📩 SMS & Email Spam Detector")
-st.caption("Group 31 - Natural Language Processing System")
-st.write("---")
+st.write("Group 31 - Natural Language Processing System")
+st.markdown("---")
 
 st.subheader("Message Classification")
+user_input = st.text_area("Enter the email or SMS text to analyze:", height=150, placeholder="Paste message here...")
 
-# Input text box
-input_text = st.text_area(
-    "Enter the email or SMS text to analyze:",
-    value="WINNER!! You have won a $1000 gift card! Call now to claim your prize!",
-    height=120
-)
-
-# Button
 if st.button("Analyze Message", type="primary"):
-    if not input_text.strip():
-        st.warning("Please enter some text.")
+    if user_input.strip() != "":
+        # Preprocess & Vectorize
+        cleaned_text = preprocess_text(user_input)
+        vectorized_text = tfidf.transform([cleaned_text])
+        
+        # Predict
+        prediction = model.predict(vectorized_text)[0]
+        confidence = model.predict_proba(vectorized_text)[0][prediction] * 100
+        
+        st.markdown("### Prediction Result:")
+        if prediction == 1:
+            st.error(f"🚨 **SPAM DETECTED**\n\n**Confidence Level:** {confidence:.2f}%")
+        else:
+            st.success(f"✅ **HAM (Legitimate Message)**\n\n**Confidence Level:** {confidence:.2f}%")
     else:
-        try:
-            model = joblib.load(MODEL_PATH)
-            vectorizer = joblib.load(VECTORIZER_PATH)
-            
-            transformed = vectorizer.transform([input_text])
-            pred = model.predict(transformed)[0]
-            probs = model.predict_proba(transformed)[0]
-            
-            st.write("### Prediction Result:")
-            if pred == 1 or pred == "spam":
-                st.error(f"🚨 **SPAM DETECTED**\n\n**Confidence Level:** {probs[1]*100:.2f}%")
-            else:
-                st.success(f"✅ **NOT SPAM (HAM)**\n\n**Confidence Level:** {probs[0]*100:.2f}%")
-        except Exception as e:
-            st.error(f"Error loading model: {e}")
+        st.warning("Please enter a message before clicking analyze.")
+
+st.markdown("---")
+st.caption("Sri Lanka Technology Campus | CCS3356 NLP Group Assignment")
